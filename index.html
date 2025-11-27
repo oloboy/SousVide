@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sous-Vide Time & Safety</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+
+<body>
+    <header>
+        <h1 data-i18n="app_title">Sous-Vide Time & Safety</h1>
+        <div class="header-controls">
+            <select id="language-selector" aria-label="Select Language">
+                <option value="en">EN</option>
+                <option value="it">IT</option>
+                <option value="fr">FR</option>
+                <option value="pl">PL</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="card input-card">
+            <!-- Category Toggle -->
+            <div class="category-toggle-container">
+                <span class="toggle-label left" data-i18n="cat_meat">Meat/Fish</span>
+                <input type="range" id="category-toggle" min="0" max="1" step="1" value="0" class="toggle-slider">
+                <span class="toggle-label right" data-i18n="cat_veg">Vegetables</span>
+            </div>
+
+            <!-- Food Type -->
+            <div class="form-group">
+                <label for="food-type" data-i18n="label_food_type">Food Type</label>
+                <select id="food-type">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+
+            <!-- Doneness / Preset -->
+            <div class="form-group">
+                <label for="doneness" data-i18n="label_doneness">Doneness / Preset</label>
+                <select id="doneness">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+
+            <!-- Shape -->
+            <div class="form-group">
+                <label for="shape" data-i18n="label_shape">Shape</label>
+                <select id="shape">
+                    <option value="slab" data-i18n="shape_slab">Slab / Steak</option>
+                    <option value="cylinder" data-i18n="shape_cylinder">Cylinder / Roulade</option>
+                    <option value="sphere" data-i18n="shape_sphere">Sphere / Ball</option>
+                </select>
+            </div>
+
+            <!-- Thickness -->
+            <div class="form-group">
+                <label for="thickness" data-i18n="label_thickness">Thickness / Diameter (mm)</label>
+                <div class="range-input">
+                    <input type="range" id="thickness-range" min="5" max="100" value="25" step="1">
+                    <input type="number" id="thickness" min="5" max="150" value="25">
+                </div>
+            </div>
+
+            <!-- Bath Temp -->
+            <div class="form-group">
+                <label for="temp-bath" data-i18n="label_temp_bath">Bath Temperature (°C)</label>
+                <div class="range-input">
+                    <input type="range" id="temp-bath-range" min="40" max="95" value="58" step="0.5">
+                    <input type="number" id="temp-bath" min="40" max="95" value="58" step="0.5">
+                </div>
+            </div>
+
+            <!-- Core Temp -->
+            <div class="form-group">
+                <label for="temp-core" data-i18n="label_temp_core">Target Core Temp (°C)</label>
+                <div class="range-input">
+                    <input type="range" id="temp-core-range" min="40" max="90" value="56" step="0.5">
+                    <input type="number" id="temp-core" min="40" max="95" value="56" step="0.5">
+                </div>
+            </div>
+
+            <!-- Start Temp -->
+            <div class="form-group">
+                <label data-i18n="label_temp_start">Food Starting Temperature</label>
+                <div class="segmented-control" id="temp-start-group">
+                    <input type="radio" id="temp-start-fridge" name="temp-start" value="4" checked>
+                    <label for="temp-start-fridge" data-i18n="temp_start_fridge">Fridge (4°C)</label>
+                    <input type="radio" id="temp-start-room" name="temp-start" value="20">
+                    <label for="temp-start-room" data-i18n="temp_start_room">Room (20°C)</label>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="card results-card">
+            <h2 data-i18n="results_section">Results</h2>
+
+            <div class="result-item">
+                <span class="result-label" data-i18n="time_heat">Time to reach core</span>
+                <span class="result-value" id="res-heat">--</span>
+            </div>
+
+            <div class="result-item">
+                <span class="result-label" data-i18n="time_past">Pasteurization time</span>
+                <span class="result-value" id="res-past">--</span>
+            </div>
+
+            <div class="result-item total-time">
+                <div class="total-time-content">
+                    <div class="total-time-row">
+                        <span class="result-label" data-i18n="time_total">Total Recommended Time</span>
+                        <span class="result-value" id="res-total">--</span>
+                    </div>
+                    <div class="total-time-row">
+                        <span class="result-label" data-i18n="temp_target">Target Temperature</span>
+                        <span class="result-value" id="res-temp">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="warnings" class="warnings"></div>
+
+            <div class="chart-container">
+                <h3 data-i18n="chart_title">Temperature Evolution</h3>
+                <canvas id="temp-chart" width="520" height="260"></canvas>
+            </div>
+        </section>
+
+        <!-- Info / Details -->
+        <section class="details-section">
+            <button id="details-toggle" class="text-btn" data-i18n="details_toggle">Show Technical Details</button>
+            <div id="details-content" class="hidden">
+                <p data-i18n="disclaimer">Disclaimer: These calculations are based on theoretical models. Always use a
+                    calibrated thermometer and follow food safety guidelines. The author assumes no responsibility for
+                    food safety.</p>
+                <div id="debug-info"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>v1.2.0</p>
+    </footer>
+
+    <script type="module" src="js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        } else if (location.protocol === 'file:') {
+            console.warn('Service worker disabilitato in modalità file://; avvia con un server locale per abilitarlo.');
+        }
+    </script>
+</body>
+
+</html>
