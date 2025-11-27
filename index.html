@@ -15,12 +15,24 @@
     <header>
         <h1 data-i18n="app_title">Sous-Vide Time & Safety</h1>
         <div class="header-controls">
-            <select id="language-selector" aria-label="Select Language">
-                <option value="en">EN</option>
-                <option value="it">IT</option>
-                <option value="fr">FR</option>
-                <option value="pl">PL</option>
-            </select>
+            <div class="lang-switch" role="group" aria-label="Select Language">
+                <button class="lang-btn" data-lang="en">EN</button>
+                <button class="lang-btn" data-lang="it">IT</button>
+                <button class="lang-btn" data-lang="fr">FR</button>
+                <button class="lang-btn" data-lang="pl">PL</button>
+            </div>
+            <div class="unit-sliders">
+                <div class="unit-slider" aria-label="Temperature unit">
+                    <span>°C</span>
+                    <input type="range" id="temp-unit-slider" min="0" max="1" step="1" value="0">
+                    <span>°F</span>
+                </div>
+                <div class="unit-slider" aria-label="Length unit">
+                    <span>mm</span>
+                    <input type="range" id="len-unit-slider" min="0" max="1" step="1" value="0">
+                    <span>inch</span>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -29,7 +41,7 @@
             <!-- Category Toggle -->
             <div class="category-toggle-container">
                 <span class="toggle-label left" data-i18n="cat_meat">Meat/Fish</span>
-                <input type="range" id="category-toggle" min="0" max="1" step="1" value="0" class="toggle-slider">
+                <input type="range" id="category-toggle" min="0" max="1" step="1" value="0" class="toggle-slider" aria-label="Toggle meat or vegetables">
                 <span class="toggle-label right" data-i18n="cat_veg">Vegetables</span>
             </div>
 
@@ -90,9 +102,9 @@
             <div class="form-group">
                 <label data-i18n="label_temp_start">Food Starting Temperature</label>
                 <div class="segmented-control" id="temp-start-group">
-                    <input type="radio" id="temp-start-fridge" name="temp-start" value="4" checked>
+                    <input type="radio" id="temp-start-fridge" name="temp-start" value="4" data-c-value="4" checked>
                     <label for="temp-start-fridge" data-i18n="temp_start_fridge">Fridge (4°C)</label>
-                    <input type="radio" id="temp-start-room" name="temp-start" value="20">
+                    <input type="radio" id="temp-start-room" name="temp-start" value="20" data-c-value="20">
                     <label for="temp-start-room" data-i18n="temp_start_room">Room (20°C)</label>
                 </div>
             </div>

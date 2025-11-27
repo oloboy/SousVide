@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
 :root {
     --primary-color: #00C6FF;
     /* Neon Cyan */
@@ -36,7 +38,9 @@ body {
 header {
     padding: var(--spacing);
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
     align-items: center;
     background: rgba(10, 10, 12, 0.8);
     backdrop-filter: var(--backdrop-blur);
@@ -55,9 +59,46 @@ h1 {
     text-transform: uppercase;
 }
 
-.header-controls {
+
+.lang-switch {
     display: flex;
-    gap: 10px;
+    gap: 6px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lang-btn {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+
+.lang-btn.active {
+    color: #fff;
+    background: rgba(0, 198, 255, 0.2);
+    box-shadow: 0 0 10px rgba(0, 198, 255, 0.25);
+}
+
+.unit-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.unit-toggle input {
+    accent-color: var(--primary-color);
 }
 
 main {
@@ -136,6 +177,14 @@ input:disabled {
     cursor: not-allowed;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.lang-btn:focus-visible {
+    outline: 2px solid #7dd3ff;
+    outline-offset: 2px;
+}
+
 .range-input {
     display: flex;
     align-items: center;
@@ -176,6 +225,7 @@ input[type="number"] {
     width: 90px;
     text-align: center;
     font-weight: 600;
+    font-family: 'Space Mono', 'DM Mono', monospace;
 }
 
 /* Segmented Control */
@@ -786,12 +836,66 @@ footer {
 }
 
 /* Active State Highlighting */
-.category-toggle-container:has(.toggle-slider[value="0"]) .toggle-label.left {
+.category-toggle-container:has(.toggle-slider[value="0"]) .toggle-label.left,
+.toggle-label.left.active {
     color: var(--primary-color);
     text-shadow: 0 0 10px rgba(0, 198, 255, 0.3);
 }
 
-.category-toggle-container:has(.toggle-slider[value="1"]) .toggle-label.right {
+.category-toggle-container:has(.toggle-slider[value="1"]) .toggle-label.right,
+.toggle-label.right.active {
     color: var(--primary-color);
     text-shadow: 0 0 10px rgba(0, 198, 255, 0.3);
+}
+
+@media (max-width: 540px) {
+    main {
+        padding: 16px;
+    }
+    .card {
+        padding: 16px;
+    }
+    .header-controls {
+        justify-content: center;
+    }
+    .range-input {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    input[type="number"] {
+        width: 100%;
+    }
+}
+
+
+
+
+.unit-sliders {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.unit-slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.unit-slider input[type="range"] {
+    width: 70px;
+}
+
+.unit-slider span {
+    font-weight: 700;
+    color: var(--text-secondary);
 }

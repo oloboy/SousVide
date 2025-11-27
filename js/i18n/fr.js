@@ -61,6 +61,7 @@ export default {
 
     temp_start_fridge: "Frigo (4°C)",
     temp_start_room: "Ambiante (20°C)",
+    label_unit_toggle: "Afficher en °F",
     chart_danger_limit: "Limite zone de danger",
     chart_slow_growth: "Croissance lente",
     chart_target: "Cible",

@@ -1,17 +1,22 @@
-﻿import { computeTotalTime, getDonenessPresets, computeTemperatureCurve, VEGETABLE_DATA } from './calculations.js?v=4';
+import { computeTotalTime, getDonenessPresets, computeTemperatureCurve, VEGETABLE_DATA } from './calculations.js?v=4';
 import en from './i18n/en.js?v=4';
 import it from './i18n/it.js?v=4';
 import fr from './i18n/fr.js?v=4';
 import pl from './i18n/pl.js?v=4';
 
 const translations = { en, it, fr, pl };
+const STORAGE_KEY = 'sousvide-settings-v2';
 let currentLang = 'en';
+let savedDoneness = null;
 
 // DOM Elements
 const els = {
     categoryToggle: document.getElementById('category-toggle'),
     categoryLabelLeft: document.querySelector('.toggle-label.left'),
     categoryLabelRight: document.querySelector('.toggle-label.right'),
+    langButtons: document.querySelectorAll('.lang-btn'),
+    tempUnitSlider: document.getElementById('temp-unit-slider'),
+    lenUnitSlider: document.getElementById('len-unit-slider'),
     foodType: document.getElementById('food-type'),
     doneness: document.getElementById('doneness'),
     shape: document.getElementById('shape'),
@@ -27,7 +32,6 @@ const els = {
     resTotal: document.getElementById('res-total'),
     resTemp: document.getElementById('res-temp'),
     warnings: document.getElementById('warnings'),
-    langSelector: document.getElementById('language-selector'),
     detailsToggle: document.getElementById('details-toggle'),
     detailsContent: document.getElementById('details-content'),
     debugInfo: document.getElementById('debug-info'),
@@ -43,32 +47,54 @@ let state = {
     tempBath: 58,
     tempCore: 56,
     tempStart: 4, // Fridge temp default
-    logReduction: null
+    logReduction: null,
+    unit: 'C',
+    lengthUnit: 'mm'
 };
 
 function init() {
-    // Detect Language
-    const browserLang = navigator.language.split('-')[0];
-    if (translations[browserLang]) {
-        currentLang = browserLang;
-        els.langSelector.value = currentLang;
-    }
+    loadSavedState();
+    setActiveLanguageButton(currentLang);
     updateLanguage();
+    applyUnitSettings();
 
     // Event Listeners
-    els.langSelector.addEventListener('change', (e) => {
-        currentLang = e.target.value;
+    els.langButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentLang = btn.dataset.lang;
+            setActiveLanguageButton(currentLang);
+            saveState();
+            updateLanguage();
+            updateFoodTypeOptions();
+            updateDonenessOptions();
+            calculate();
+        });
+    });
+
+    els.tempUnitSlider.addEventListener('input', (e) => {
+        state.unit = e.target.value === '1' ? 'F' : 'C';
+        applyUnitSettings();
         updateLanguage();
-        updateFoodTypeOptions(); // Re-render to translate options
         updateDonenessOptions();
+        handleDonenessChange();
         calculate();
+        saveState();
+    });
+
+    els.lenUnitSlider.addEventListener('input', (e) => {
+        state.lengthUnit = e.target.value === '1' ? 'inch' : 'mm';
+        applyUnitSettings();
+        setInputsFromState();
+        calculate();
+        saveState();
     });
 
     els.categoryToggle.addEventListener('input', (e) => {
         state.category = e.target.value === '1' ? 'vegetables' : 'meat';
         updateCategoryLabels();
+        saveState();
         updateFoodTypeOptions();
-        handleFoodTypeChange(); // Reset to first item
+        handleFoodTypeChange();
     });
 
     // Sync Range and Number inputs
@@ -92,6 +118,7 @@ function init() {
         input.addEventListener('change', () => {
             state.tempStart = parseFloat(input.value);
             calculate();
+            saveState();
         });
     });
 
@@ -104,9 +131,18 @@ function init() {
     els.chartCanvas.addEventListener('mouseleave', handleChartMouseLeave);
 
     // Initial Setup
-    updateFoodTypeOptions();
-    handleFoodTypeChange();
+    els.categoryToggle.value = state.category === 'vegetables' ? '1' : '0';
+    els.tempUnitSlider.value = state.unit === 'F' ? '1' : '0';
+    els.lenUnitSlider.value = state.lengthUnit === 'inch' ? '1' : '0';
+    applyUnitSettings();
+    setInputsFromState();
     updateCategoryLabels();
+    updateFoodTypeOptions();
+    if (state.foodType) {
+        els.foodType.value = state.foodType;
+    }
+    handleFoodTypeChange();
+    calculate();
 
     // Service Worker Registration
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -114,7 +150,7 @@ function init() {
             .then(() => console.log('SW Registered'))
             .catch(err => console.error('SW Fail', err));
     } else if (location.protocol === 'file:') {
-        console.warn('Service worker disabilitato in modalitÃ  file://; avvia con un server locale per abilitarlo.');
+        console.warn('Service worker disabilitato in modalità file://; avvia con un server locale per abilitarlo.');
     }
 }
 
@@ -126,6 +162,122 @@ function syncInputs(numberInput, rangeInput) {
     rangeInput.addEventListener('input', () => {
         numberInput.value = rangeInput.value;
         updateState();
+    });
+}
+
+function cToF(c) {
+    return +(c * 9 / 5 + 32).toFixed(1);
+}
+
+function fToC(f) {
+    return +((f - 32) * 5 / 9).toFixed(1);
+}
+
+function mmToIn(mm) {
+    return +(mm / 25.4).toFixed(2);
+}
+
+function inToMm(inch) {
+    return +(inch * 25.4).toFixed(1);
+}
+
+function applyUnitSettings() {
+    const isF = state.unit === 'F';
+    const stepC = 0.5;
+    const step = isF ? cToF(stepC) - cToF(0) : stepC;
+
+    const setBounds = (inputNum, inputRange, minC, maxC) => {
+        const min = isF ? cToF(minC) : minC;
+        const max = isF ? cToF(maxC) : maxC;
+        inputNum.min = min; inputNum.max = max; inputNum.step = step;
+        inputRange.min = min; inputRange.max = max; inputRange.step = step;
+    };
+
+    setBounds(els.tempBath, els.tempBathRange, 40, 95);
+    setBounds(els.tempCore, els.tempCoreRange, 40, 95);
+
+    // Length unit bounds
+    const setLenBounds = (minMm, maxMm) => {
+        const min = state.lengthUnit === 'inch' ? mmToIn(minMm) : minMm;
+        const max = state.lengthUnit === 'inch' ? mmToIn(maxMm) : maxMm;
+        const stepLen = state.lengthUnit === 'inch' ? 0.1 : 1;
+        els.thickness.min = min;
+        els.thickness.max = max;
+        els.thickness.step = stepLen;
+        els.thicknessRange.min = min;
+        els.thicknessRange.max = max;
+        els.thicknessRange.step = stepLen;
+    };
+    setLenBounds(5, 150);
+
+    updateStartTempLabels();
+
+    // Refresh visible values from state
+    setInputsFromState();
+    updateThicknessLabel();
+}
+
+function setInputsFromState() {
+    // Thickness
+    const displayThickness = state.lengthUnit === 'inch' ? mmToIn(state.thickness) : state.thickness;
+    els.thickness.value = displayThickness;
+    els.thicknessRange.value = displayThickness;
+    // Temps
+    updateInputValue(els.tempBath, els.tempBathRange, state.tempBath);
+    updateInputValue(els.tempCore, els.tempCoreRange, state.tempCore);
+    // Temp start radio
+    els.tempStartInputs.forEach(r => { r.checked = parseFloat(r.value) === state.tempStart; });
+    // Unit toggle state already handled in init
+}
+
+function saveState() {
+    const payload = {
+        lang: currentLang,
+        category: state.category,
+        foodType: state.foodType,
+        shape: state.shape,
+        thickness: state.thickness,
+        tempBath: state.tempBath,
+        tempCore: state.tempCore,
+        tempStart: state.tempStart,
+        unit: state.unit,
+        lengthUnit: state.lengthUnit,
+        doneness: els.doneness ? els.doneness.value : 'manual'
+    };
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {
+        console.warn('Unable to save settings', e);
+    }
+}
+
+function loadSavedState() {
+    const browserLang = navigator.language.split('-')[0];
+    if (translations[browserLang]) currentLang = browserLang;
+
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        currentLang = saved.lang || currentLang;
+        state.category = saved.category || state.category;
+        state.foodType = saved.foodType || state.foodType;
+        state.shape = saved.shape || state.shape;
+        state.thickness = saved.thickness || state.thickness;
+        state.tempBath = saved.tempBath || state.tempBath;
+        state.tempCore = saved.tempCore || state.tempCore;
+        state.tempStart = saved.tempStart || state.tempStart;
+        state.unit = saved.unit || state.unit;
+        state.lengthUnit = saved.lengthUnit || state.lengthUnit;
+        if (saved.doneness) { savedDoneness = saved.doneness; }
+    } catch (e) {
+        console.warn('Unable to load saved settings', e);
+    }
+}
+
+function setActiveLanguageButton(lang) {
+    els.langButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
     });
 }
 
@@ -202,8 +354,9 @@ function setControlsLocked(locked) {
 }
 
 function updateInputValue(numInput, rangeInput, value) {
-    numInput.value = value;
-    rangeInput.value = value;
+    const displayVal = state.unit === 'F' ? cToF(value) : value;
+    numInput.value = displayVal;
+    rangeInput.value = displayVal;
 }
 
 function updateDonenessOptions() {
@@ -229,7 +382,11 @@ function updateDonenessOptions() {
     });
 
     // Default to first preset if available
-    if (presets.length > 0) {
+    const preferred = savedDoneness;
+    const exists = preferred && Array.from(els.doneness.options).some(o => o.value === preferred);
+    if (exists) {
+        els.doneness.value = preferred;
+    } else if (presets.length > 0) {
         els.doneness.value = presets[0].temp;
     } else {
         els.doneness.value = 'manual';
@@ -249,8 +406,7 @@ function handleDonenessChange() {
         els.tempBathRange.disabled = false;
 
         // Reset ranges to full
-        els.tempBath.min = 40; els.tempBath.max = 95;
-        els.tempBathRange.min = 40; els.tempBathRange.max = 95;
+        const min = state.unit === "F" ? cToF(40) : 40; const max = state.unit === "F" ? cToF(95) : 95; els.tempBath.min = min; els.tempBath.max = max; els.tempBathRange.min = min; els.tempBathRange.max = max;
 
     } else {
         const targetTemp = parseFloat(val);
@@ -264,16 +420,11 @@ function handleDonenessChange() {
         const minBath = targetTemp + 0.5;
         const maxBath = targetTemp + 5;
 
-        els.tempBath.min = minBath;
-        els.tempBath.max = maxBath;
-        els.tempBathRange.min = minBath;
-        els.tempBathRange.max = maxBath;
+        const minDisplay = state.unit === "F" ? cToF(minBath) : minBath; const maxDisplay = state.unit === "F" ? cToF(maxBath) : maxBath; els.tempBath.min = minDisplay; els.tempBath.max = maxDisplay; els.tempBathRange.min = minDisplay; els.tempBathRange.max = maxDisplay;
 
         // Set default bath temp if out of range
         let currentBath = parseFloat(els.tempBath.value);
-        if (currentBath < minBath || currentBath > maxBath) {
-            currentBath = targetTemp + 2; // Default +2\u00b0C
-            updateInputValue(els.tempBath, els.tempBathRange, currentBath);
+        if ((state.unit === "F" ? fToC(currentBath) : currentBath) < minBath || (state.unit === "F" ? fToC(currentBath) : currentBath) > maxBath) { const newBathC = targetTemp + 2; updateInputValue(els.tempBath, els.tempBathRange, newBathC);
         }
 
         els.tempBath.disabled = false;
@@ -284,12 +435,14 @@ function handleDonenessChange() {
 function updateState() {
     state.foodType = els.foodType.value;
     state.shape = els.shape.value;
-    state.thickness = parseFloat(els.thickness.value);
-    state.tempBath = parseFloat(els.tempBath.value);
-    state.tempCore = parseFloat(els.tempCore.value);
+    const thicknessVal = parseFloat(els.thickness.value);
+    state.thickness = state.lengthUnit === 'inch' ? inToMm(thicknessVal) : thicknessVal;
+    state.tempBath = state.unit === 'F' ? fToC(parseFloat(els.tempBath.value)) : parseFloat(els.tempBath.value);
+    state.tempCore = state.unit === 'F' ? fToC(parseFloat(els.tempCore.value)) : parseFloat(els.tempCore.value);
     state.tempStart = getSelectedStartTemp();
 
     calculate();
+    saveState();
 }
 
 function updateCategoryLabels() {
@@ -303,7 +456,9 @@ function updateCategoryLabels() {
 
 function getSelectedStartTemp() {
     const checked = Array.from(els.tempStartInputs).find(input => input.checked);
-    return checked ? parseFloat(checked.value) : state.tempStart;
+    if (!checked) return state.tempStart;
+    const cVal = parseFloat(checked.dataset.cValue || checked.value);
+    return cVal;
 }
 
 function calculate() {
@@ -314,7 +469,7 @@ function calculate() {
             els.resHeat.textContent = "--";
             els.resPast.textContent = "--";
             els.resTotal.textContent = formatTime(veg.time);
-            els.resTemp.textContent = `${veg.temp}\u00b0C`;
+            els.resTemp.textContent = formatTemp(veg.temp);
             els.warnings.style.display = 'none';
 
             // Draw a simple heating curve for vegetables: ramp to temp then hold
@@ -334,7 +489,7 @@ function calculate() {
     els.resHeat.textContent = formatTime(results.heatingTime);
     els.resPast.textContent = formatTime(results.pasteurizationTime);
     els.resTotal.textContent = formatTime(results.totalTime);
-    els.resTemp.textContent = `${state.tempCore}\u00b0C`;
+    els.resTemp.textContent = formatTemp(state.tempCore);
 
     // Warnings
     const msgs = [];
@@ -379,6 +534,8 @@ function drawChart(points) {
 
     ctx.clearRect(0, 0, w, h);
 
+    const displayPoints = state.unit === 'F' ? points.map(p => ({ x: p.x, y: cToF(p.y) })) : points;
+
     const padLeft = 50;
     const padRight = 20;
     const padTop = 20;
@@ -386,9 +543,9 @@ function drawChart(points) {
     const graphW = w - padLeft - padRight;
     const graphH = h - padTop - padBottom;
 
-    const maxTime = points[points.length - 1].x;
-    const rawMaxTemp = Math.max(...points.map(p => p.y), state.tempBath);
-    const rawMinTemp = Math.min(...points.map(p => p.y), state.tempStart);
+    const maxTime = displayPoints[displayPoints.length - 1].x;
+    const rawMaxTemp = Math.max(...displayPoints.map(p => p.y), state.unit === 'F' ? cToF(state.tempBath) : state.tempBath);
+    const rawMinTemp = Math.min(...displayPoints.map(p => p.y), state.unit === 'F' ? cToF(state.tempStart) : state.tempStart);
 
     const maxTemp = Math.ceil(rawMaxTemp / 5) * 5 + 5;
     const minTemp = Math.floor(rawMinTemp / 5) * 5 - 5;
@@ -398,8 +555,8 @@ function drawChart(points) {
 
     // background danger zone
     ctx.fillStyle = 'rgba(255, 59, 48, 0.05)';
-    const dangerTop = scaleY(60);
-    const dangerBottom = scaleY(4);
+    const dangerTop = scaleY(state.unit === 'F' ? cToF(60) : 60);
+    const dangerBottom = scaleY(state.unit === 'F' ? cToF(4) : 4);
     ctx.fillRect(padLeft, dangerTop, graphW, dangerBottom - dangerTop);
 
     // grid
@@ -439,7 +596,7 @@ function drawChart(points) {
     ctx.stroke();
 
     // safety lines
-    const pastY = scaleY(60);
+    const pastY = scaleY(state.unit === 'F' ? cToF(60) : 60);
     ctx.strokeStyle = 'rgba(255, 193, 7, 0.6)';
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 3]);
@@ -449,20 +606,20 @@ function drawChart(points) {
     ctx.stroke();
     ctx.textAlign = 'left';
     ctx.fillStyle = '#ffc107';
-    ctx.fillText(`60\u00b0C (${t.chart_danger_limit || 'Danger zone limit'})`, padLeft + 5, pastY - 5);
+    ctx.fillText(`${state.unit === 'F' ? '140°F' : '60\u00b0C'} (${t.chart_danger_limit || 'Danger zone limit'})`, padLeft + 5, pastY - 5);
 
-    const slowY = scaleY(52);
+    const slowY = scaleY(state.unit === 'F' ? cToF(52) : 52);
     ctx.strokeStyle = 'rgba(255, 152, 0, 0.5)';
     ctx.beginPath();
     ctx.moveTo(padLeft, slowY);
     ctx.lineTo(w - padRight, slowY);
     ctx.stroke();
     ctx.fillStyle = '#ff9800';
-    ctx.fillText(`52\u00b0C (${t.chart_slow_growth || 'Slow growth'})`, padLeft + 5, slowY - 5);
+    ctx.fillText(`${state.unit === 'F' ? '125.6°F' : '52\u00b0C'} (${t.chart_slow_growth || 'Slow growth'})`, padLeft + 5, slowY - 5);
     ctx.setLineDash([]);
 
     // target line
-    const targetY = scaleY(state.tempCore);
+    const targetY = scaleY(state.unit === 'F' ? cToF(state.tempCore) : state.tempCore);
     ctx.strokeStyle = 'rgba(0, 198, 255, 0.8)';
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 4]);
@@ -473,7 +630,7 @@ function drawChart(points) {
     ctx.setLineDash([]);
     ctx.fillStyle = '#00C6FF';
     ctx.textAlign = 'right';
-    ctx.fillText(`${t.chart_target || 'Target'}: ${state.tempCore}\u00b0C`, w - padRight - 5, targetY - 5);
+    ctx.fillText(`${t.chart_target || 'Target'}: ${formatTemp(state.tempCore)}`, w - padRight - 5, targetY - 5);
 
     // curve
     ctx.strokeStyle = '#00C6FF';
@@ -481,7 +638,7 @@ function drawChart(points) {
     ctx.shadowBlur = 10;
     ctx.shadowColor = 'rgba(0, 198, 255, 0.5)';
     ctx.beginPath();
-    points.forEach((p, i) => {
+    displayPoints.forEach((p, i) => {
         const x = scaleX(p.x);
         const y = scaleY(p.y);
         if (i === 0) ctx.moveTo(x, y);
@@ -491,7 +648,7 @@ function drawChart(points) {
     ctx.shadowBlur = 0;
 
     els.chartCanvas._chartData = {
-        points,
+        points: displayPoints,
         scaleX,
         scaleY,
         maxTime,
@@ -512,12 +669,19 @@ function formatTime(minutes) {
     return `${m}m`;
 }
 
+function formatTemp(tempC) {
+    return state.unit === 'F' ? `${cToF(tempC)}°F` : `${tempC}°C`;
+}
+
 function updateLanguage() {
     const t = translations[currentLang];
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (t[key]) el.textContent = t[key];
     });
+    updateStartTempLabels();
+    updateThicknessLabel();
+    setActiveLanguageButton(currentLang);
 }
 
 init();
@@ -590,7 +754,7 @@ function handleChartMouseMove(e) {
     ctx.stroke();
 
     // Tooltip box
-    const tooltipText = `${Math.round(time)}m: ${temp.toFixed(1)}\u00b0C`;
+    const tooltipText = `${Math.round(time)}m: ${temp.toFixed(1)}${state.unit === 'F' ? '\u00b0F' : '\u00b0C'}`;
     ctx.font = '12px monospace';
     const textWidth = ctx.measureText(tooltipText).width;
     const tooltipW = textWidth + 16;
@@ -653,6 +817,26 @@ function buildVegetableCurve({ totalTime, targetTemp, startTemp }) {
 
     return points;
 }
+
+function updateStartTempLabels() {
+    const t = translations[currentLang] || {};
+    const fmt = (c) => state.unit === 'F' ? `${cToF(c)}°F` : `${c}°C`;
+    const fridgeLabel = document.querySelector('label[for="temp-start-fridge"]');
+    const roomLabel = document.querySelector('label[for="temp-start-room"]');
+    if (fridgeLabel) fridgeLabel.textContent = `${(t.temp_start_fridge || 'Fridge').split('(')[0].trim()} (${fmt(4)})`;
+    if (roomLabel) roomLabel.textContent = `${(t.temp_start_room || 'Room').split('(')[0].trim()} (${fmt(20)})`;
+}
+
+function updateThicknessLabel() {
+    const label = document.querySelector('label[for="thickness"]');
+    if (!label) return;
+    const t = translations[currentLang] || {};
+    const base = t.label_thickness || 'Thickness / Diameter';
+    const unitTxt = state.lengthUnit === 'inch' ? 'inch' : 'mm';
+    label.textContent = `${base} (${unitTxt})`;
+}
+
+
 
 
 

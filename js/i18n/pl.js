@@ -61,6 +61,7 @@ export default {
 
     temp_start_fridge: "Lodówka (4°C)",
     temp_start_room: "Pokojowa (20°C)",
+    label_unit_toggle: "Pokaż w °F",
     chart_danger_limit: "Granica strefy zagrożenia",
     chart_slow_growth: "Powolny wzrost",
     chart_target: "Cel",

@@ -57,6 +57,7 @@
 
     temp_start_fridge: "Fridge (4°C)",
     temp_start_room: "Room (20°C)",
+    label_unit_toggle: "Show °F",
     chart_danger_limit: "Danger zone limit",
     chart_slow_growth: "Slow growth",
     chart_target: "Target",

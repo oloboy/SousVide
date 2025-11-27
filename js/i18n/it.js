@@ -62,6 +62,7 @@
 
     temp_start_fridge: "Frigo (4°C)",
     temp_start_room: "Ambiente (20°C)",
+    label_unit_toggle: "Mostra °F",
     chart_danger_limit: "Zona di pericolo",
     chart_slow_growth: "Crescita lenta",
     chart_target: "Obiettivo",
